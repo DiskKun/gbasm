@@ -1,2 +1,2 @@
-# x86asm
-My x86 assembly projects, might I do any.
+# gbasm
+My Game Boy assembly projects, might I do any.

@@ -18,16 +18,16 @@ INCBIN "city.map"
 city_map_data_end:
 
 SECTION "sprite", ROM0
-opt g0123
+opt g.123
 sprite_data:
-dw `00000000
-dw `00000000
-dw `00300300
-dw `00000000
-dw `03000030
-dw `00333300
-dw `00000000
-dw `00000000
+dw `.333333.
+dw `31111113
+dw `31311313
+dw `31111113
+dw `31311313
+dw `31133113
+dw `31111113
+dw `.333333.
 sprite_data_end:
 
 SECTION "game code", ROM0[$150]
@@ -37,6 +37,8 @@ Start:
 
 	ld a, %11100100
 	ld [rBGP], a
+	ld a, %11100000
+	ld [rOBP0], a
 
 	ld bc, city_tile_data_end - city_tile_data
 	ld de, $8000
@@ -57,20 +59,23 @@ Start:
 	ld c, $a0
 	call memset_small
 
-	ld a, 100
-	ld $fe00, a
-	ld a, 100
-	ld $fe01, a
+	ld a, 60
+	ld [$fe00], a
+	ld a, 50
+	ld [$fe01], a
 	ld a, $eb
-	ld $fe02, a
+	ld [$fe02], a
 	ld a, OAMF_PAL0|OAMF_BANK0
-	ld $fe03, a
+	ld [$fe03], a
 
-	ld a, LCDCF_ON|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJ8|LCDCF_OBJON
-	ldh [rLCDC], a
-
+	call enableLCD
 .deadloop:
 	jr .deadloop
+
+enableLCD:
+	ld a, LCDCF_ON|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJ8|LCDCF_OBJON
+	ldh [rLCDC], a
+	ret
 
 memCopy:
 	ld a, [hli]

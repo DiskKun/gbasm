@@ -47,7 +47,7 @@ Start:
 	ld hl, city_map_data
 	call memCopy
 
-	ld bc, sprite_data - sprite_data_end
+	ld bc, sprite_data_end - sprite_data
 	ld de, $8000 + city_tile_data_end - city_tile_data
 	ld hl, sprite_data
 	call memCopy

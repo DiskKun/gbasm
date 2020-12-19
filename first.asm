@@ -51,7 +51,10 @@ Start:
 	ld de, $8000 + city_tile_data_end - city_tile_data
 	ld hl, sprite_data
 	call memCopy
-	;ld a, 
+	
+	ld hl, $fe00
+	xor a
+	ld c, $9f
 
 	ld a, LCDCF_ON|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJ8|LCDCF_OBJON
 	ldh [rLCDC], a
@@ -60,14 +63,13 @@ Start:
 	jr .deadloop
 
 memCopy:
-.loop
 	ld a, [hli]
 	ld [de], a
 	inc de
 	dec bc
 	ld a, b
 	or c
-	jr nz, .loop
+	jr nz, memCopy
 	ret
 
 disableLCD:
@@ -79,3 +81,12 @@ disableLCD:
 	res 7, a
 	ld [rLCDC], a
 	ret
+
+; HL - destination
+; A - byte to store
+; C - number of bytes to set
+memset_small:
+  ld [hli], a
+  dec c
+  jr nz, memset_small
+  ret

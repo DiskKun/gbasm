@@ -54,7 +54,17 @@ Start:
 	
 	ld hl, $fe00
 	xor a
-	ld c, $9f
+	ld c, $a0
+	call memset_small
+
+	ld a, 100
+	ld $fe00, a
+	ld a, 100
+	ld $fe01, a
+	ld a, $eb
+	ld $fe02, a
+	ld a, OAMF_PAL0|OAMF_BANK0
+	ld $fe03, a
 
 	ld a, LCDCF_ON|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJ8|LCDCF_OBJON
 	ldh [rLCDC], a

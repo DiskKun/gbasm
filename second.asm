@@ -10,19 +10,6 @@ tile_data:
 INCBIN "tiles.chr"
 tile_data_end:
 
-SECTION "sprite", ROM0
-opt g.123
-sprite_data:
-dw `.333333.
-dw `31111113
-dw `31311313
-dw `31111113
-dw `31311313
-dw `31133113
-dw `31111113
-dw `.333333.
-sprite_data_end:
-
 SECTION "game code", ROM0[$150]
 
 Start:
@@ -38,13 +25,8 @@ Start:
 	ld hl, tile_data
 	call memCopy
 
-	ld bc, sprite_data_end - sprite_data
-	ld de, $8000 + tile_data_end - tile_data
-	ld hl, sprite_data
-	call memCopy
-
 	ld hl, $9800
-	ld a, 0
+	ld a, $17
 	ld bc, $400
 	call memset
 
@@ -53,19 +35,70 @@ Start:
 	ld c, $a0
 	call memset_small
 
-	ld a, 60
+	ld a, 16
 	ld [$fe00], a
-	ld a, 50
+	ld a, 8
 	ld [$fe01], a
-	ld a, $eb
+	ld a, $00
 	ld [$fe02], a
 	ld a, OAMF_PAL0|OAMF_BANK0
 	ld [$fe03], a
 
 	call enableLCD
-.deadloop:
-	jr .deadloop
 
+mainGame:
+	ld hl, $ff00
+	res 5, [hl]
+	set 4, [hl]
+.loop
+	bit 0, [hl]
+	jr z, .a
+	bit 1, [hl]
+	jr z, .b
+	jr nz, .loop
+
+.a
+	call checkControl
+	call waitVBlank
+	ld a, [$fe02]
+	inc a
+	ld [$fe02], a
+	jp pass
+
+.b
+	call checkControl
+	call waitVBlank
+	ld a, [$fe02]
+	dec a
+	ld [$fe02], a
+
+pass:
+	
+	jp mainGame
+
+checkControl:
+; checks to see if previous control input is the same as the last one; if so, pass
+	ld a, [$ff00]
+	ld b, a
+	ld a, [$c000]
+	cp b
+	jr z, pass
+	ld a, b
+	ld [$c000], a
+
+wait:
+	ld a, $ff
+	ld b, $ff
+.loop
+	dec a
+	cp 0
+	jr nz, .loop
+	ld a, b
+.loop2
+	dec a
+	cp 0
+	jr nz, .loop2
+	ret
 enableLCD:
 	ld a, LCDCF_ON|LCDCF_BG8000|LCDCF_BGON|LCDCF_OBJ8|LCDCF_OBJON
 	ldh [rLCDC], a
@@ -79,6 +112,12 @@ memCopy:
 	ld a, b
 	or c
 	jr nz, memCopy
+	ret
+
+waitVBlank:
+	ld   a, [rLY]
+	cp   144
+	jr c, waitVBlank
 	ret
 
 disableLCD:

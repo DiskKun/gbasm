@@ -70,8 +70,6 @@ testButtons:
 	jr nz, testDPad
 
 .a
-	ld a, 5
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
 	ld a, [$fe02]
@@ -82,8 +80,6 @@ testButtons:
 	jp testDPad
 
 .b
-	ld a, 6
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
 	ld a, [$fe02]
@@ -137,8 +133,6 @@ testDPad:
 	jp nz, testButtons
 
 .right
-	ld a, 1
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
 	ld b, 8
@@ -150,8 +144,6 @@ testDPad:
 	jp testButtons
 
 .left
-	ld a, 2
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
 	ld b, 8
@@ -163,11 +155,9 @@ testDPad:
 	jp testButtons
 
 .up
-	ld a, 3
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
-	ld b, 16
+	ld b, 8
 	ld a, [$fe00]
 	cp 16
 	jp z, testButtons
@@ -176,11 +166,9 @@ testDPad:
 	jp testButtons
 
 .down
-	ld a, 4
-	ld [new_jp], a
 	call checkControl
 	call waitVBlank
-	ld b, 16
+	ld b, 8
 	ld a, [$fe00]
 	cp 152
 	jp z, testButtons
@@ -189,16 +177,15 @@ testDPad:
 	jp testButtons
 
 checkControl:
+	;ret
 ; checks to see if previous control input is the same as the last one; if so, pass
-	ld a, [new_jp]
+	ld a, [$ff00]
 	ld b, a
 	ld a, [old_jp]
 	cp b
 	jp z, testButtons
 	ld a, b
 	ld [old_jp], a
-	xor a
-	ld [new_jp], a
 	ret
 
 wait:

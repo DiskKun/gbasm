@@ -55,11 +55,12 @@ Start:
 mainGame:
 
 testButtons:
+	call waitVBlank
+
 	ld hl, $ff00
 	set 4, [hl]
 	res 5, [hl]
 	
-.loop
 	ld a, [$ff00]
 	bit	0, a
 	jr z, .a
@@ -67,30 +68,45 @@ testButtons:
 	jr z, .b
 	bit 3, a
 	jr z, .start
-	jr nz, testDPad
+	
+	ld b, 8
+	set 5, [hl]
+	res 4, [hl]
+
+	ld a, [$ff00]
+	bit 0, a
+	jr z, .right
+	bit 1, a
+	jr z, .left
+	bit 2, a
+	jp z, .up
+	bit 3, a
+	jp z, .down
+	jp nz, testButtons
 
 .a
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld a, [$fe02]
 	cp $17
-	jp z, testDPad
+	jp z, testButtons
 	inc a
 	ld [$fe02], a
-	jp testDPad
+	jp testButtons
 
 .b
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld a, [$fe02]
 	cp 0
-	jp z, testDPad
+	jp z, testButtons
 	dec a
 	ld [$fe02], a
-	jp testDPad
+	jp testButtons
 
 .start
-	call waitVBlank
 	ld a, [$fe00]; In screen pixel coords, NOT oam coords!
 	sub a, 16
 	rlca
@@ -113,28 +129,12 @@ testButtons:
 	
 	ld a, [$fe02]
 	ld [hl], a
-
-testDPad:
-	ld b, 8
-	ld hl, $ff00
-	set 5, [hl]
-	res 4, [hl]
-
-.loop
-	ld a, [$ff00]
-	bit 0, a
-	jr z, .right
-	bit 1, a
-	jr z, .left
-	bit 2, a
-	jr z, .up
-	bit 3, a
-	jr z, .down
-	jp nz, testButtons
+	jp testButtons
 
 .right
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld b, 8
 	ld a, [$fe01]
 	cp 160
@@ -145,7 +145,8 @@ testDPad:
 
 .left
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld b, 8
 	ld a, [$fe01]
 	cp 8
@@ -156,7 +157,8 @@ testDPad:
 
 .up
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld b, 8
 	ld a, [$fe00]
 	cp 16
@@ -167,7 +169,8 @@ testDPad:
 
 .down
 	call checkControl
-	call waitVBlank
+	cp 1
+	jp z, testButtons
 	ld b, 8
 	ld a, [$fe00]
 	cp 152
@@ -183,9 +186,13 @@ checkControl:
 	ld b, a
 	ld a, [old_jp]
 	cp b
-	jp z, testButtons
+	jp z, .next
 	ld a, b
 	ld [old_jp], a
+	ld a, 0
+	ret
+.next
+	ld a, 1
 	ret
 
 wait:

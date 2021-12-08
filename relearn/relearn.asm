@@ -80,6 +80,11 @@ WaitVB:
 	ld bc, tile_map_end - tile_map
 	call memCopy
 
+	ld hl, $fe00
+	ld de, $fe9f - $fe00
+	ld c, 0
+	call memSet
+
 ;	Initialize selector sprite
 	ld hl, $fe00
 	ld a, 60

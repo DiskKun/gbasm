@@ -2,8 +2,18 @@ INCLUDE "hardware.inc"
 SECTION "header", ROM0[$100]
 
 EntryPoint:
-	jp Start
+	jp Title
 	ds $150 - @, 0
+
+SECTION "title_data", ROM0
+title_data:
+INCBIN "title.chr"
+title_data_end:
+
+SECTION "title_map", ROM0
+title_map:
+INCBIN "title.map"
+title_map_end:
 
 SECTION "tiledata", ROM0
 tile_data:
@@ -11,20 +21,57 @@ INCBIN "tiles.chr"
 tile_data_end:
 
 SECTION "WRAM Things", WRAM0
-old_jp:
+wOldJoypad:
 	db
-new_jp:
+wNewJoypad:
 	db
 
 SECTION "game code", ROM0[$150]
 
-Start:
+Title:
 	call disableLCD
 
 	ld a, %11100100
 	ld [rBGP], a
 	ld a, %11100000
 	ld [rOBP0], a
+
+	ld hl, $8000
+	ld d, $f
+	ld bc, $7ff
+	call memset
+
+	ld bc, title_data_end - title_data
+	ld de, $8000
+	ld hl, title_data
+	call memCopy
+
+	ld bc, title_map_end - title_map
+	ld de, $9800
+	ld hl, title_map
+	call memCopy
+
+	call enableLCD
+
+	ld a, [$ff00]
+	set 4, a
+	res 5, a
+	ld [$ff00], a
+
+.loop
+	ld a, [$ff00]
+	bit 3, a
+	jp z, .next
+	jp .loop
+
+.next
+	ld a, [$ff00]
+	bit 3, a
+	jp nz, .next2
+	jp .next
+
+.next2
+	call disableLCD
 
 	ld bc, tile_data_end - tile_data
 	ld de, $8000
@@ -57,32 +104,40 @@ mainGame:
 testButtons:
 	call waitVBlank
 
-	ld hl, $ff00
-	set 4, [hl]
-	res 5, [hl]
+	ld c, LOW(rP1)
+	ld a, $10
+	ldh [c], a
+	ldh a, [c]
+	or $F0
+	swap a
+	ld b, a
+	ld a, $20
+	ldh [c], a
+	ldh a, [c]
+	or $F0
+	xor b
+	ld [wNewJoypad], a
 	
-	ld a, [$ff00]
-	bit	0, a
-	jr z, .a
-	bit 1, a
-	jr z, .b
-	bit 3, a
-	jr z, .start
+	bit	4, a
+	jr nz, .a
+	bit 5, a
+	jr nz, .b
+	bit 7, a
+	jr nz, .start
 	
-	ld b, 8
-	set 5, [hl]
-	res 4, [hl]
-
-	ld a, [$ff00]
 	bit 0, a
-	jr z, .right
+	jr nz, .right
 	bit 1, a
-	jr z, .left
+	jp nz, .left
 	bit 2, a
-	jp z, .up
+	jp nz, .up
 	bit 3, a
-	jp z, .down
-	jp nz, testButtons
+	jp nz, .down
+
+	ld a, 0
+	ld [wOldJoypad], a
+
+	jp z, testButtons
 
 .a
 	call checkControl
@@ -107,6 +162,10 @@ testButtons:
 	jp testButtons
 
 .start
+	call checkControl
+	cp 1
+	jp z, testButtons
+
 	ld a, [$fe00]; In screen pixel coords, NOT oam coords!
 	sub a, 16
 	rlca
@@ -182,13 +241,13 @@ testButtons:
 checkControl:
 	;ret
 ; checks to see if previous control input is the same as the last one; if so, pass
-	ld a, [$ff00]
+	ld a, [wNewJoypad]
 	ld b, a
-	ld a, [old_jp]
+	ld a, [wOldJoypad]
 	cp b
 	jp z, .next
 	ld a, b
-	ld [old_jp], a
+	ld [wOldJoypad], a
 	ld a, 0
 	ret
 .next

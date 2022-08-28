@@ -1,27 +1,74 @@
 ;*	Includes
 	; system includes
 	INCLUDE	"hardware.inc"
-	
+	INCLUDE "charmap.asm"	
 ;*	user data
 	SECTION "wram vars",WRAM0
-	
+wVBlankID:
+	db
+
+; wSpritePos
+wSprites:
+wSpr1X:
+	db
+wSpr1Y:
+	db
+wSpr2X:
+	db
+wSpr2Y:
+	db
+wSprites_End:
+
+	SECTION "OAM Buffer", WRAM0[$cf00]
+wOAM_Buffer:
+	ds 4*40
+
 	SECTION "ram_pads", WRAM0
 cur_keys: 
 	ds 1
 new_keys: 
 	ds 1
 
-	SECTION "tile data",ROM0
+	SECTION "data",ROM0
 all_tiles:
-cursor_tiles:
-	INCBIN "cursor.2bpp"
-cursor_tiles_end:
+scene_0_tiles:
+	INCBIN "title.2bpp"
+scene_0_tiles_end:
+scene_0_sprites:
+	dw `33333333
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `33333333
+scene_0_sprites_end:
+
+text_tiles:
+	INCBIN "text.2bpp"
+text_tiles_end:
 all_tiles_end:
+
+all_tile_maps:
+scene_0_map:
+	INCBIN "title.tilemap"
+scene_0_map_end:
+all_tile_maps_end:
+
+; strings
+teststring:
+	db "NEW",255
+
 ;*	equates
 
 	SECTION "Interrupts",ROM0[$40]
 VBlank_INT:
-	reti
+	push af
+  push bc
+  push de
+  push hl
+	jp VBlankHandler
 	
 	SECTION	"Header",ROM0[$100]
 	jp Start
@@ -32,10 +79,10 @@ VBlank_INT:
 Start:
 
 ;	Turn off LCD
-waitVBlank:
+.wait
 	ld a, [rLY]
 	cp 144
-	jp c, waitVBlank
+	jr c, .wait
 
 	xor a
 	ld [rLCDC], a
@@ -43,23 +90,154 @@ waitVBlank:
 ;	load palettes
 	ld a, %11010000
 	ld [rOBP0], a
-	ld a, %11100100
+	;ld a, %11100100
+	xor a
 	ld [rBGP], a
+
+; clear OAM
+	ld c, 0
+	ld hl, wOAM_Buffer
+	ld de, 4*40
+	call memSet
+
+	ld hl, text_tiles
+	ld de, $8bb0
+	ld bc, text_tiles_end - text_tiles
+	call memCopy
+
+; copy DMA code into HRAM
+	ld hl, DMA_CODE
+	ld bc, DMA_CODE_END - DMA_CODE
+	ld de, $ff80
+	call memCopy
+
 
 ; enable interrupts
   ei
   ld a, %00000001 ; VBlank only
   ldh [rIE], a
 
+	ld a, 255
+	ld [wVBlankID], a
+
 ; Turn on LCD
   ld a, %10010011 ; LCD & PPU Enable, BG & Tile Data $8000, OBJ Enable, BG & Window Enable
   ld [rLCDC], a
 
+TitleLoad:
+; Clear screen
+	ld c, $0
+	ld hl, $9800
+	ld de, 32 * 32 * 2
+	call vMemSet
+
+;	LOAD SCENE 0
+	ld hl, scene_0_tiles
+	ld de, $8000
+	ld bc, scene_0_tiles_end - scene_0_tiles
+	call vMemCopy
+
+	ld hl, scene_0_sprites
+	ld bc, scene_0_sprites_end - scene_0_sprites
+	ld de, $8240
+	call vMemCopy
+
+	ld hl, $9800
+	ld de, scene_0_map
+	ld b, 18
+	call ScreenCopy
+	
+	ld b, 5
+	ld d, %11100100
+	call fadeInBG
+
+	ld a, 96
+	ld [wOAM_Buffer], a
+	ld a, 64
+	ld [wOAM_Buffer+1], a
+	ld a, $24
+	ld [wOAM_Buffer+2], a
+
+	ld hl, teststring
+	ld de, $9944
+	call printString
+
+
+;	ld b, 5
+;	call fadeOutBG
+
 deadloop:
 	jr deadloop
 
+;	hl: text location
+; de: screen location
+printString:
+	ld a, [hli]
+	cp 255
+	ret z
+	ld b, a
+	call waitVRAM
+	ld a, b
+	ld [de], a
+	inc de
+	jr printString
 
-memCopy:
+
+; ==============
+; VBLANK HANDLER
+; ==============
+;
+; 0: Title screen cutscene
+VBlankHandler:
+	; copy oam buffer
+	call $ff80
+
+.end
+	pop hl
+  pop de
+  pop bc
+  pop af
+	reti
+	
+
+DMA_CODE:
+	ld a, HIGH(wOAM_Buffer)
+	ldh [$FF46], a
+	ld a, 40
+	dec a
+	jr nz, @-1
+	ret
+DMA_CODE_END:
+
+; Used to load a full map of 20*18 regular tiles. LCD-Safe
+; @ hl: Pointer to upper-left tile
+; @ de: Pointer to source tile map
+; @ b : Number of rows to copy
+ScreenCopy:
+    ld c, SCRN_X_B
+.rowLoop
+;        ldh a, [rSTAT]
+;        and STATF_BUSY
+;        jr nz, .rowLoop
+	call waitVRAM
+    ld a, [de]
+    ld [hli], a
+    inc de
+    dec c
+    jr nz, .rowLoop
+    dec b
+    ret z
+    ld a, SCRN_VX_B - SCRN_X_B
+    ; Add `a` to `hl`
+    add a, l
+    ld l, a
+    adc a, h
+    sub a, l
+    ld h, a
+    jr ScreenCopy
+
+vMemCopy:
+	call waitVRAM
   ld a, [hli]
   ld [de], a
   inc de
@@ -69,7 +247,19 @@ memCopy:
   jr nz, memCopy
   ret
 
-memSet:
+memCopy:
+	call waitVRAM
+  ld a, [hli]
+  ld [de], a
+  inc de
+  dec bc
+  ld a, b
+  or c
+  jr nz, memCopy
+  ret
+
+vMemSet:
+	call waitVRAM
   ld a, c
   ld [hli], a
   dec de
@@ -78,6 +268,67 @@ memSet:
   cp 0
   jp nz, memSet
   ret
+
+memSet:
+	call waitVRAM
+  ld a, c
+  ld [hli], a
+  dec de
+  ld a, d
+  or e
+  cp 0
+  jp nz, memSet
+  ret
+
+waitVRAM:
+	ldh a, [rSTAT]
+	and STATF_BUSY
+	jr nz, waitVRAM
+	ret
+
+fadeOutBG:
+; b: time
+	ld c, b
+.fadeLoop
+	ldh a, [rLY]
+	cp 144
+	jr nz, .fadeLoop
+	dec b
+	jr nz, .fadeLoop
+	ld b, c
+	ld a, [rBGP]
+	sla a
+	sla a
+	ld [rBGP], a
+	cp 0
+	ret z
+	jr .fadeLoop
+
+fadeInBG:
+; b: time
+; d: palette to fade to
+	ld c, b
+	ld h, 4 ; counter
+	ld l, 0 ; palette shifteage
+.fadeLoop
+	ldh a, [rLY]
+	cp 144
+	jr nz, .fadeLoop
+	dec b
+	jr nz, .fadeLoop
+	ld b, c
+	srl d
+	rr l
+	srl d
+	rr l
+	ld a, l
+	ld [rBGP], a
+	dec h
+	ret z
+	jr .fadeLoop
+
+
+	
 
 ;
 ; Controller reading for Game Boy and Super Game Boy
@@ -151,6 +402,10 @@ read_pad:
   or $F0   ; A7-4 = 1; A3-0 = unpressed keys
 .knownret:
   ret
+
+
+
+
 
 
 ;*** End Of File ***

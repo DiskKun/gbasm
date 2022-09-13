@@ -16,9 +16,9 @@ wPlayerOAMY:
 	db
 wPlayerOAMX:
 	db
-wPlayerCheckY:
+wPlayerOldY:
 	db
-wPlayerCheckX:
+wPlayerOldX:
 	db
 
 	SECTION "wram oam",WRAM0[$c000]
@@ -56,14 +56,14 @@ test_tiles:
 	dw `00332211
 	dw `03322110
 
-	dw `32103210
-	dw `21032103
-	dw `10321032
-	dw `03210321
-	dw `32103210
-	dw `21032103
-	dw `10321032
-	dw `03210321
+	dw `33333333
+	dw `32222223
+	dw `32111123
+	dw `32100123
+	dw `32100123
+	dw `32111123
+	dw `32222223
+	dw `33333333
 test_tiles_end:
 
 	SECTION "tables",ROM0
@@ -77,8 +77,8 @@ cur_keys:
 new_keys: 
 	ds 1
 ;*	equates
-	def PLAYER_SPEED_ADD equ 32
-	def PLAYER_SPEED_SUB equ -32
+	def PLAYER_SPEED equ 16
+	def PLAYER_FRIC equ 16
 	def PLAYER_COLLIDE_OFFSET_1 equ 8;
 
 	SECTION "Interrupts",ROM0[$40]
@@ -147,8 +147,10 @@ Start:
 	ld hl, $9800
 	ld de, 1024
 	call memSet
-	ld a, 2
-	ld [$9a30], a
+	ld c, 2
+	ld hl, $9a30
+	ld de, 32
+	call memSet
 
 ; Init sprite
 	ld a, 76
@@ -195,7 +197,7 @@ moveRoutine:
 	ld h, a
 	ld a, [wPlayerVelocityY+1]
 	ld l, a
-	ld bc, PLAYER_SPEED_ADD
+	ld bc, PLAYER_SPEED
 	add hl, bc
 	ld a, h
 	ld [wPlayerVelocityY], a
@@ -207,7 +209,7 @@ moveRoutine:
 	ld h, a
 	ld a, [wPlayerVelocityY+1]
 	ld l, a
-	ld bc, PLAYER_SPEED_SUB
+	ld bc, -PLAYER_SPEED
 	add hl, bc
 	ld a, h
 	ld [wPlayerVelocityY], a
@@ -219,7 +221,7 @@ moveRoutine:
 	ld h, a
 	ld a, [wPlayerVelocityX+1]
 	ld l, a
-	ld bc, PLAYER_SPEED_ADD
+	ld bc, PLAYER_SPEED
 	add hl, bc
 	ld a, h
 	ld [wPlayerVelocityX], a
@@ -231,7 +233,7 @@ moveRoutine:
 	ld h, a
 	ld a, [wPlayerVelocityX+1]
 	ld l, a
-	ld bc, PLAYER_SPEED_SUB
+	ld bc, -PLAYER_SPEED
 	add hl, bc
 	ld a, h
 	ld [wPlayerVelocityX], a
@@ -249,11 +251,11 @@ slowDownX:
 	ret z
 	bit 7, h
 	jr z, .xPos
-	ld bc, PLAYER_SPEED_ADD
+	ld bc, PLAYER_FRIC
 	add hl, bc
 	jr .loadBackX
 .xPos
-	ld bc, PLAYER_SPEED_SUB
+	ld bc, -PLAYER_FRIC
 	add hl, bc
 .loadBackX
 	ld a, h
@@ -271,11 +273,11 @@ slowDownY:
 	jr z, .end
 	bit 7, h
 	jr z, .yPos
-	ld bc, PLAYER_SPEED_ADD
+	ld bc, PLAYER_FRIC
 	add hl, bc
 	jr .loadBackY
 .yPos
-	ld bc, PLAYER_SPEED_SUB
+	ld bc, -PLAYER_FRIC
 	add hl, bc
 .loadBackY
 	ld a, h
@@ -315,10 +317,59 @@ applyPlayerVelocity:
 	ld [wPlayerX+1], a
 	ret
 
-tileInteraction:
-	ld b, 0
-	ld h, 0
+tileCheck:
+	ld a, [wPlayerOldY]
+	ld b, a
 	ld a, [wPlayerX]
+	call tileInteraction
+
+	ld bc, collision_table
+	ld d, collision_table_end - collision_table
+.loop
+  ld a, [bc]
+  ld e, a
+  inc bc
+  ld a, [hl]
+  cp e
+  jr z, .test
+  dec d
+  jr nz, .loop
+  jp .y
+.test
+	xor a
+	ld [wPlayerVelocityX], a
+	ld a, [wPlayerOldX]
+	ld [wPlayerX], a
+
+.y
+  ld a, [wPlayerY]
+  ld b, a
+  ld a, [wPlayerOldX]
+  call tileInteraction
+
+  ld bc, collision_table
+  ld d, collision_table_end - collision_table
+.loop2
+  ld a, [bc]
+  ld e, a
+  inc bc
+  ld a, [hl]
+  cp e
+  jr z, .test2
+  dec d
+  jr nz, .loop2
+  ret
+.test2
+	ld a, 0
+	ld [wPlayerVelocityY], a
+	ld a, [wPlayerOldY]
+	ld [wPlayerY], a
+	ret
+
+tileInteraction:
+	; a: wPlayerX
+	; b: wPlayerY
+	
 	add 4
 	or a
 	rra
@@ -327,44 +378,20 @@ tileInteraction:
 	or a
 	rra
 	ld l, a
-	ld a, [wPlayerY]
+	ld a, b
 	add 4
-	or a
-	rra
-	or a
-	rra
-	or a
-	rra
+	and %11111000
+	ld b, 0
 	or a ; reset carry
 	rla
 	rl b
 	rla
 	rl b
-	rla
-	rl b
-	rla
-	rl b
-	rla
-	rl b
 	ld c, a
+	ld h, 0
 	add hl, bc
 	ld bc, $9800
 	add hl, bc
-	ld bc, collision_table
-	ld d, collision_table_end - collision_table
-.loop
-	ld a, [bc]
-	ld e, a
-	inc bc
-	ld a, [hl]
-	cp e
-	jr z, .test
-	dec d
-	jr nz, .loop
-	ret
-.test
-	ld a, 0
-	ld [rLCDC], a
 	ret
 
 VBlank:
@@ -372,8 +399,15 @@ VBlank:
 	cp $e2
 	jr nz, .end
 	call run_dma
+
+	ld a, [wPlayerX]
+	ld [wPlayerOldX], a
+	ld a, [wPlayerY]
+	ld [wPlayerOldY], a
+	
 	call moveRoutine
-	call tileInteraction
+	call tileCheck
+	
 	ld a, [wPlayerY]
 	ld b, 68
 	ld c, $42

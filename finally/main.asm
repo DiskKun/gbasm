@@ -39,12 +39,12 @@ OAMDMA_end:
 	SECTION "graphics",ROM0
 test_tiles:
 	dw `03333330
-	dw `31111113
-	dw `31311313
-	dw `31111113
-	dw `31311313
-	dw `31133113
-	dw `31111113
+	dw `33000033
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `30000003
+	dw `33000033
 	dw `03333330
 
 	dw `33221100
@@ -249,7 +249,7 @@ slowDownX:
 	or h
 	cp 0
 	ret z
-	bit 7, h
+	bit 7, h	; check if x velo is positive or negative
 	jr z, .xPos
 	ld bc, PLAYER_FRIC
 	add hl, bc
@@ -338,6 +338,7 @@ tileCheck:
 .test
 	xor a
 	ld [wPlayerVelocityX], a
+	ld [wPlayerVelocityX+1], a
 	ld a, [wPlayerOldX]
 	ld [wPlayerX], a
 
@@ -360,8 +361,9 @@ tileCheck:
   jr nz, .loop2
   ret
 .test2
-	ld a, 0
+	xor a
 	ld [wPlayerVelocityY], a
+	ld [wPlayerVelocityY+1], a
 	ld a, [wPlayerOldY]
 	ld [wPlayerY], a
 	ret
@@ -369,7 +371,6 @@ tileCheck:
 tileInteraction:
 	; a: wPlayerX
 	; b: wPlayerY
-	
 	add 4
 	or a
 	rra
